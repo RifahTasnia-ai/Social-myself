@@ -329,17 +329,29 @@ export default function RoomArchiveView() {
 
                     {item.comments.length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-[#E4DFD4] pt-2.5">
-                        {item.comments.map((cmt) => (
-                          <div
-                            key={cmt.id}
-                            className="rounded-lg bg-white px-3 py-2 text-xs text-[#3A404D]"
-                          >
-                            <span className="font-semibold text-[#1A1D24]">
-                              {cmt.characterName}:
-                            </span>{' '}
-                            <span>{cmt.text}</span>
-                          </div>
-                        ))}
+                        {item.comments.map((cmt) => {
+                          const parentCmt = cmt.parentId
+                            ? item.comments.find((p) => p.id === cmt.parentId)
+                            : null;
+                          return (
+                            <div
+                              key={cmt.id}
+                              className={`rounded-lg bg-white px-3 py-2 text-xs text-[#3A404D] ${
+                                parentCmt ? 'ml-5 border-l-2 border-[#D5CFC2]' : ''
+                              }`}
+                            >
+                              <span className="font-semibold text-[#1A1D24]">
+                                {cmt.characterName}
+                              </span>
+                              {parentCmt && (
+                                <span className="mx-1 text-[11px] text-[#7D8390]">
+                                  replied to {parentCmt.characterName}
+                                </span>
+                              )}
+                              <span>: {cmt.text}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </article>

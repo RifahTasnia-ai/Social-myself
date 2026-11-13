@@ -108,7 +108,18 @@ test('addFeedPost, addFeedComment, and deleteFeedComment work cleanly', () => {
   assert.equal(cmtRes.state.feed[0].comments.length, 1);
   assert.equal(cmtRes.state.feed[0].comments[0].characterName, 'Sasuke');
 
-  const delCmtRes = deleteFeedComment(cmtRes.state, {
+  const nestedReplyRes = addFeedComment(cmtRes.state, {
+    feedItemId: newPost.id,
+    characterId: 'char_ajanokoji',
+    text: 'Acknowledged, logging edge-case note.',
+    parentCommentId: cmtId,
+  });
+  assert.equal(nestedReplyRes.ok, true);
+  if (!nestedReplyRes.ok) return;
+  assert.equal(nestedReplyRes.state.feed[0].comments.length, 2);
+  assert.equal(nestedReplyRes.state.feed[0].comments[1].parentId, cmtId);
+
+  const delCmtRes = deleteFeedComment(nestedReplyRes.state, {
     feedItemId: newPost.id,
     commentId: cmtId,
   });

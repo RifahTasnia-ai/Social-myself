@@ -35,6 +35,7 @@ export interface FeedComment {
   characterName: string;
   text: string;
   createdAt: string;
+  parentId?: string;
 }
 
 export interface FeedDiff {
@@ -627,7 +628,12 @@ export function addFeedPost(
 
 export function addFeedComment(
   state: WorkspaceState,
-  input: { feedItemId: string; characterId?: string; text: string }
+  input: {
+    feedItemId: string;
+    characterId?: string;
+    text: string;
+    parentCommentId?: string;
+  }
 ): ActionResult {
   const text = input.text.trim();
   if (!text) {
@@ -639,6 +645,13 @@ export function addFeedComment(
     return { ok: false, error: 'Feed post not found.' };
   }
 
+  if (
+    input.parentCommentId &&
+    !target.comments.some((c) => c.id === input.parentCommentId)
+  ) {
+    return { ok: false, error: 'Parent comment not found.' };
+  }
+
   const actor = resolveCharacter(state, input.characterId, state.activeFeedCharacterId);
   const comment: FeedComment = {
     id: createId('cmt'),
@@ -646,6 +659,7 @@ export function addFeedComment(
     characterName: actor.name,
     text,
     createdAt: new Date().toISOString(),
+    ...(input.parentCommentId ? { parentId: input.parentCommentId } : {}),
   };
 
   return {
@@ -1040,6 +1054,19 @@ export function deleteFeedComment(
   if (!hasComment) {
     return { ok: false, error: 'Comment not found.' };
   }
+
+  const toDelete = new Set<string>([input.commentId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const c of target.comments) {
+      if (c.parentId && toDelete.has(c.parentId) && !toDelete.has(c.id)) {
+        toDelete.add(c.id);
+        changed = true;
+      }
+    }
+  }
+
   return {
     ok: true,
     state: {
@@ -1048,7 +1075,7 @@ export function deleteFeedComment(
         f.id === input.feedItemId
           ? {
               ...f,
-              comments: f.comments.filter((c) => c.id !== input.commentId),
+              comments: f.comments.filter((c) => !toDelete.has(c.id)),
             }
           : f
       ),
