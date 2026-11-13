@@ -40,6 +40,14 @@ export default function MentionTextarea({
           )
           .slice(0, 6);
 
+  const isExactUniqueMatch =
+    mentionQuery !== null &&
+    filteredKeywords.length === 1 &&
+    filteredKeywords[0].keyword.toLowerCase() === mentionQuery.toLowerCase();
+
+  const showSuggestions =
+    mentionQuery !== null && filteredKeywords.length > 0 && !isExactUniqueMatch;
+
   function detectMentionAtCaret(text: string, caretPos: number) {
     const textBeforeCaret = text.slice(0, caretPos);
     const match = textBeforeCaret.match(/(?:^|\s)@([a-zA-Z0-9_-]*)$/);
@@ -78,7 +86,7 @@ export default function MentionTextarea({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (mentionQuery !== null && filteredKeywords.length > 0) {
+    if (showSuggestions) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex((prev) => (prev + 1) % filteredKeywords.length);
@@ -134,14 +142,24 @@ export default function MentionTextarea({
         className={`w-full resize-none rounded-lg border border-[#DCD6CA] bg-[#FAF8F4] px-3.5 py-2.5 text-sm leading-relaxed text-[#1A1D24] placeholder:text-[#7D8390] focus:border-[#2D4B73] focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73]/20 transition-colors ${className}`}
       />
 
-      {mentionQuery !== null && filteredKeywords.length > 0 && (
+      {showSuggestions && (
         <div
           role="listbox"
           aria-label="Keyword suggestions"
           className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-56 overflow-y-auto rounded-lg border border-[#DCD6CA] bg-white p-1.5 shadow-lg"
         >
-          <div className="px-2 py-1 text-[11px] font-medium text-[#6B7180]">
-            Select keyword mention
+          <div className="flex items-center justify-between px-2 py-1 text-[11px] font-medium text-[#6B7180]">
+            <span>Select keyword mention</span>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setMentionQuery(null);
+              }}
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-[#575D6B] hover:bg-[#F3EFE6] hover:text-[#1A1D24]"
+            >
+              Esc
+            </button>
           </div>
           {filteredKeywords.map((kw, idx) => (
             <button

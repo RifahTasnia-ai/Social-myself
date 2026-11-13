@@ -142,6 +142,7 @@ export default function KotonohaWorkspace() {
     feedItemId: string;
     characterId: string;
     text: string;
+    parentCommentId?: string;
   }) {
     return applyAction(addFeedComment(state, input));
   }

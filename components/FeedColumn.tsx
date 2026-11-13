@@ -15,9 +15,11 @@ import {
   GitCommitHorizontal,
   Archive,
   Trash2,
+  CornerDownRight,
 } from 'lucide-react';
 import type {
   Character,
+  FeedComment,
   FeedFilterCategory,
   FeedItem,
   KeywordItem,
@@ -46,6 +48,7 @@ interface FeedColumnProps {
     feedItemId: string;
     characterId: string;
     text: string;
+    parentCommentId?: string;
   }) => { ok: true } | { ok: false; error: string };
   onMoveFeedToRoom: (feedItemId: string) => void;
   onDeleteFeedItem: (feedItemId: string) => void;
@@ -99,6 +102,14 @@ export default function FeedColumn({
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [replyCharIds, setReplyCharIds] = useState<Record<string, string>>({});
   const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
+
+  // Per-comment nested reply state
+  const [activeReplyCommentKey, setActiveReplyCommentKey] = useState<string | null>(
+    null
+  );
+  const [nestedReplyTexts, setNestedReplyTexts] = useState<Record<string, string>>({});
+  const [nestedReplyCharIds, setNestedReplyCharIds] = useState<Record<string, string>>({});
+  const [nestedReplyErrors, setNestedReplyErrors] = useState<Record<string, string>>({});
 
   const activeSpeaker =
     feedCharacters.find((c) => c.id === activeFeedCharacterId) ||
@@ -157,6 +168,34 @@ export default function FeedColumn({
       delete next[feedItemId];
       return next;
     });
+  }
+
+  function handleNestedReplySubmit(
+    e: React.FormEvent,
+    feedItemId: string,
+    parentCommentId: string
+  ) {
+    e.preventDefault();
+    const key = `${feedItemId}:${parentCommentId}`;
+    const text = nestedReplyTexts[key] ?? '';
+    const charId = nestedReplyCharIds[key] || activeSpeaker.id;
+    const res = onAddComment({
+      feedItemId,
+      characterId: charId,
+      text,
+      parentCommentId,
+    });
+    if (!res.ok) {
+      setNestedReplyErrors((prev) => ({ ...prev, [key]: res.error }));
+      return;
+    }
+    setNestedReplyTexts((prev) => ({ ...prev, [key]: '' }));
+    setNestedReplyErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setActiveReplyCommentKey(null);
   }
 
   function findCharacter(id: string, fallbackName: string): Character | null {
@@ -618,68 +657,221 @@ export default function FeedColumn({
                     </div>
                   )}
 
-                  {/* Comments Thread + Individual Comment Delete + Inline Reply */}
+                  {/* Comments Thread + Individual Comment Reply & Delete + Inline Reply */}
                   <div className="mt-3.5 border-t border-[#1A1D24]/8 pt-3">
-                    {item.comments.length > 0 && (
-                      <div className="mb-3 space-y-2.5">
-                        {item.comments.map((cmt) => {
-                          const cmtChar = findCharacter(
-                            cmt.characterId,
-                            cmt.characterName
-                          );
-                          return (
+                    {item.comments.length > 0 && (() => {
+                      const commentIds = new Set(item.comments.map((c) => c.id));
+                      const topLevelComments = item.comments.filter(
+                        (c) => !c.parentId || !commentIds.has(c.parentId)
+                      );
+                      const repliesByParent = new Map<string, FeedComment[]>();
+                      for (const c of item.comments) {
+                        if (c.parentId && commentIds.has(c.parentId)) {
+                          const list = repliesByParent.get(c.parentId) ?? [];
+                          list.push(c);
+                          repliesByParent.set(c.parentId, list);
+                        }
+                      }
+
+                      const renderCommentNode = (
+                        cmt: FeedComment,
+                        depth: number
+                      ): React.ReactNode => {
+                        const cmtChar = findCharacter(
+                          cmt.characterId,
+                          cmt.characterName
+                        );
+                        const replyKey = `${item.id}:${cmt.id}`;
+                        const isReplyingHere = activeReplyCommentKey === replyKey;
+                        const childReplies = repliesByParent.get(cmt.id) ?? [];
+                        const selectedNestedCharId =
+                          nestedReplyCharIds[replyKey] ||
+                          activeSpeaker?.id ||
+                          characters[0]?.id;
+
+                        return (
+                          <div key={cmt.id} className="space-y-2">
                             <div
-                              key={cmt.id}
-                              className="flex items-start justify-between gap-2 rounded-lg bg-[#F6F3EC]/85 px-3 py-2"
+                              className={`rounded-lg px-3 py-2 ${
+                                depth > 0
+                                  ? 'border border-[#E4DFD4] bg-[#FAF8F4]'
+                                  : 'bg-[#F6F3EC]/85'
+                              }`}
                             >
-                              <div className="flex items-start gap-2 min-w-0 flex-1">
-                                <CharacterAvatar
-                                  character={cmtChar}
-                                  nameFallback={cmt.characterName}
-                                  size="xs"
-                                  className="mt-0.5"
-                                />
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-x-2 text-xs">
-                                    <span className="font-semibold text-[#1A1D24]">
-                                      {cmt.characterName}
-                                    </span>
-                                    <span className="font-mono text-[11px] text-[#7D8390] tabular-nums">
-                                      {formatRelativeOrTime(cmt.createdAt)}
-                                    </span>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 min-w-0 flex-1">
+                                  <CharacterAvatar
+                                    character={cmtChar}
+                                    nameFallback={cmt.characterName}
+                                    size="xs"
+                                    className="mt-0.5"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-x-2 text-xs">
+                                      <span className="font-semibold text-[#1A1D24]">
+                                        {cmt.characterName}
+                                      </span>
+                                      <span className="font-mono text-[11px] text-[#7D8390] tabular-nums">
+                                        {formatRelativeOrTime(cmt.createdAt)}
+                                      </span>
+                                    </div>
+                                    <div className="mt-0.5 text-xs leading-relaxed text-[#3A404D]">
+                                      <RichMentionText
+                                        text={cmt.text}
+                                        activeFilter={activeKeywordFilter}
+                                        onKeywordClick={(kw) =>
+                                          onSelectKeywordFilter(kw)
+                                        }
+                                      />
+                                    </div>
                                   </div>
-                                  <div className="mt-0.5 text-xs leading-relaxed text-[#3A404D]">
-                                    <RichMentionText
-                                      text={cmt.text}
-                                      activeFilter={activeKeywordFilter}
-                                      onKeywordClick={(kw) =>
-                                        onSelectKeywordFilter(kw)
-                                      }
+                                </div>
+
+                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onDeleteFeedComment({
+                                        feedItemId: item.id,
+                                        commentId: cmt.id,
+                                      })
+                                    }
+                                    aria-label={`Delete comment by ${cmt.characterName}`}
+                                    title="Delete comment"
+                                    className="inline-flex items-center gap-1 rounded-[3px] border border-transparent px-1.5 py-0.5 text-[11px] font-medium text-[#7D8390] transition-colors hover:border-[#E5D7D5] hover:bg-white hover:text-[#9F3A26] whitespace-nowrap"
+                                  >
+                                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                    <span>Delete</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveReplyCommentKey((prev) =>
+                                        prev === replyKey ? null : replyKey
+                                      );
+                                      setNestedReplyErrors((prev) => {
+                                        const next = { ...prev };
+                                        delete next[replyKey];
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label={`Reply to comment by ${cmt.characterName}`}
+                                    aria-expanded={isReplyingHere}
+                                    className={`inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-0.5 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                                      isReplyingHere
+                                        ? 'border-[#2D4B73] bg-[#2D4B73] text-white'
+                                        : 'border-[#DCD6CA] bg-white text-[#2D4B73] hover:bg-[#EDF4FA]'
+                                    }`}
+                                  >
+                                    <CornerDownRight
+                                      className="h-3 w-3"
+                                      aria-hidden="true"
                                     />
-                                  </div>
+                                    <span>Reply</span>
+                                  </button>
                                 </div>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onDeleteFeedComment({
-                                    feedItemId: item.id,
-                                    commentId: cmt.id,
-                                  })
-                                }
-                                aria-label={`Delete comment by ${cmt.characterName}`}
-                                title="Delete comment"
-                                className="inline-flex items-center gap-1 rounded-[3px] border border-transparent px-1.5 py-1 text-[11px] font-medium text-[#7D8390] transition-colors hover:border-[#E5D7D5] hover:bg-white hover:text-[#9F3A26] whitespace-nowrap shrink-0"
-                              >
-                                <Trash2 className="h-3 w-3" aria-hidden="true" />
-                                <span>Delete</span>
-                              </button>
+                              {isReplyingHere && (
+                                <form
+                                  onSubmit={(e) =>
+                                    handleNestedReplySubmit(e, item.id, cmt.id)
+                                  }
+                                  className="mt-2.5 border-t border-[#E4DFD4] pt-2 space-y-1.5"
+                                >
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <label
+                                      htmlFor={`nested-char-${cmt.id}`}
+                                      className="sr-only"
+                                    >
+                                      Reply character
+                                    </label>
+                                    <select
+                                      id={`nested-char-${cmt.id}`}
+                                      value={selectedNestedCharId}
+                                      onChange={(e) =>
+                                        setNestedReplyCharIds((prev) => ({
+                                          ...prev,
+                                          [replyKey]: e.target.value,
+                                        }))
+                                      }
+                                      className="rounded-[3px] border border-[#DCD6CA] bg-white px-2 py-1 text-[11px] font-medium text-[#1A1D24] focus:border-[#2D4B73] focus:outline-none"
+                                    >
+                                      {characters.map((char) => (
+                                        <option key={char.id} value={char.id}>
+                                          {char.name}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      aria-label={`Write reply to ${cmt.characterName}`}
+                                      value={nestedReplyTexts[replyKey] ?? ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNestedReplyTexts((prev) => ({
+                                          ...prev,
+                                          [replyKey]: val,
+                                        }));
+                                        if (nestedReplyErrors[replyKey]) {
+                                          setNestedReplyErrors((prev) => {
+                                            const next = { ...prev };
+                                            delete next[replyKey];
+                                            return next;
+                                          });
+                                        }
+                                      }}
+                                      placeholder={`Reply to ${cmt.characterName}...`}
+                                      className="min-w-[140px] flex-1 rounded-[3px] border border-[#DCD6CA] bg-white px-2.5 py-1 text-xs text-[#1A1D24] placeholder:text-[#8A909E] focus:border-[#2D4B73] focus:outline-none"
+                                    />
+
+                                    <button
+                                      type="submit"
+                                      className="rounded-[3px] bg-[#2D4B73] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#223B5C] whitespace-nowrap shrink-0"
+                                    >
+                                      Send
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveReplyCommentKey(null)}
+                                      className="rounded-[3px] border border-[#D5CFC2] bg-white px-2 py-1 text-[11px] font-medium text-[#575D6B] hover:bg-[#F3EFE6] whitespace-nowrap shrink-0"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+
+                                  {nestedReplyErrors[replyKey] && (
+                                    <p
+                                      role="alert"
+                                      className="text-[11px] text-[#B91C1C]"
+                                    >
+                                      {nestedReplyErrors[replyKey]}
+                                    </p>
+                                  )}
+                                </form>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+
+                            {childReplies.length > 0 && (
+                              <div className="ml-4 sm:ml-6 space-y-2 border-l border-[#D5CFC2] pl-3">
+                                {childReplies.map((child) =>
+                                  renderCommentNode(child, Math.min(depth + 1, 2))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      };
+
+                      return (
+                        <div className="mb-3 space-y-2.5">
+                          {topLevelComments.map((cmt) => renderCommentNode(cmt, 0))}
+                        </div>
+                      );
+                    })()}
 
                     <form
                       onSubmit={(e) => handleReplySubmit(e, item.id)}
