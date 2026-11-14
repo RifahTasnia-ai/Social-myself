@@ -33,18 +33,18 @@ export default function TopNavBar({
   archivedCount = 0,
   isRoomPage = false,
 }: TopNavBarProps) {
-  const actionBtnBase =
-    'inline-flex items-center gap-1.5 rounded-[3px] border border-[#223B5C] bg-[#2D4B73] px-3.5 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#223B5C] active:bg-[#1B304B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73] focus-visible:ring-offset-1 whitespace-nowrap shrink-0';
+  const secondaryActionBtn =
+    'inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 text-[12.5px] font-medium text-slate-700 shadow-2xs transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F] whitespace-nowrap shrink-0';
 
   return (
-    <header className="lg:sticky lg:top-0 z-30 border-b border-[#DCD6CA] bg-[#FBF9F5]/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-2.5 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+    <header className="lg:sticky lg:top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-4 py-2.5 sm:px-6 lg:h-14 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:px-8 lg:py-0">
         {/* Top Row on Mobile / Left + Right Zones on Desktop */}
         <div className="flex items-center justify-between gap-4 lg:contents">
           {/* Zone 1: Single-element Brand Wordmark */}
           <Link
             href="/"
-            className="font-display text-2xl font-semibold tracking-tight text-[#1A1D24] whitespace-nowrap shrink-0 lg:order-1"
+            className="font-display text-[22px] font-semibold tracking-tight text-slate-900 whitespace-nowrap shrink-0 lg:order-1"
           >
             Kotonoha
           </Link>
@@ -54,7 +54,7 @@ export default function TopNavBar({
             {isRoomPage ? (
               <Link
                 href="/"
-                className="inline-flex items-center gap-1.5 rounded-[3px] border border-[#223B5C] bg-[#2D4B73] px-3.5 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#223B5C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73] whitespace-nowrap shrink-0"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0F172A] px-3 text-[12.5px] font-semibold text-white transition-colors duration-150 hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F] whitespace-nowrap shrink-0"
               >
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Studio</span>
@@ -63,12 +63,12 @@ export default function TopNavBar({
               <Link
                 href="/room"
                 aria-label={`Open Room archive (${archivedCount} archived)`}
-                className="inline-flex items-center gap-1.5 rounded-[3px] border border-[#D5CFC2] bg-white px-3.5 py-2 text-xs font-semibold text-[#1A1D24] transition-colors duration-150 hover:bg-[#F4F0E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73] whitespace-nowrap shrink-0"
+                className={secondaryActionBtn}
               >
-                <Archive className="h-3.5 w-3.5 text-[#2D4B73]" aria-hidden="true" />
+                <Archive className="h-3.5 w-3.5 text-[#1E3A5F]" aria-hidden="true" />
                 <span>Room</span>
                 {archivedCount > 0 && (
-                  <span className="font-mono text-[11px] text-[#2D4B73] tabular-nums">
+                  <span className="font-mono text-[11px] font-semibold text-[#1E3A5F] tabular-nums">
                     ({archivedCount})
                   </span>
                 )}
@@ -80,16 +80,16 @@ export default function TopNavBar({
                 type="button"
                 onClick={() => onOpenModal('settings')}
                 aria-label="Open character and workspace settings"
-                className="inline-flex items-center gap-2 rounded-[3px] border border-[#D5CFC2] bg-white px-3.5 py-2 text-xs font-semibold text-[#1A1D24] transition-colors duration-150 hover:bg-[#F4F0E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73] whitespace-nowrap shrink-0"
+                className={secondaryActionBtn}
               >
-                <Settings className="h-3.5 w-3.5 text-[#575D6B]" aria-hidden="true" />
+                <Settings className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                 <span>Settings</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Zone 2: Unified Deep Indigo Rectangular Action Buttons */}
+        {/* Zone 2: Studio Quick Actions (1 Primary CTA + Clean Secondary Action Group) */}
         {!isRoomPage && onOpenModal ? (
           <nav
             aria-label="Workspace actions"
@@ -99,19 +99,21 @@ export default function TopNavBar({
               type="button"
               onClick={() => onOpenModal('new_keyword')}
               aria-pressed={activeModal === 'new_keyword'}
-              className={actionBtnBase}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0F172A] px-3.5 text-[12.5px] font-semibold text-white shadow-2xs transition-colors duration-150 hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F] whitespace-nowrap shrink-0"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               <span>New Keyword</span>
             </button>
 
+            <div className="h-4 w-px bg-slate-200 shrink-0" aria-hidden="true" />
+
             <button
               type="button"
               onClick={() => onOpenModal('order')}
               aria-pressed={activeModal === 'order'}
-              className={actionBtnBase}
+              className={secondaryActionBtn}
             >
-              <ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />
+              <ClipboardList className="h-3.5 w-3.5 text-[#1E3A5F]" aria-hidden="true" />
               <span>Order</span>
             </button>
 
@@ -119,9 +121,9 @@ export default function TopNavBar({
               type="button"
               onClick={() => onOpenModal('pending_verify')}
               aria-pressed={activeModal === 'pending_verify'}
-              className={actionBtnBase}
+              className={secondaryActionBtn}
             >
-              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              <Clock className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
               <span>Pending Verify</span>
             </button>
 
@@ -129,14 +131,14 @@ export default function TopNavBar({
               type="button"
               onClick={() => onOpenModal('success_verify')}
               aria-pressed={activeModal === 'success_verify'}
-              className={actionBtnBase}
+              className={secondaryActionBtn}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
               <span>Success Verify</span>
             </button>
           </nav>
         ) : (
-          <div className="hidden lg:flex lg:order-2 items-center text-xs text-[#616775]">
+          <div className="hidden lg:flex lg:order-2 items-center text-xs text-slate-500">
             <span>Room Archive · Completed Threads &amp; Verification History</span>
           </div>
         )}

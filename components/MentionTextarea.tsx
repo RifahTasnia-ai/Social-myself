@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { KeywordItem } from '@/lib/workspace-store';
 
 interface MentionTextareaProps {
@@ -12,7 +12,12 @@ interface MentionTextareaProps {
   rows?: number;
   className?: string;
   ariaLabel?: string;
+  autoFocus?: boolean;
+  autoExpand?: boolean;
+  variant?: 'boxed' | 'borderless' | 'compact';
+  externalRef?: (el: HTMLTextAreaElement | null) => void;
   onSubmitShortcut?: () => void;
+  onCancel?: () => void;
 }
 
 export default function MentionTextarea({
@@ -21,15 +26,46 @@ export default function MentionTextarea({
   onChange,
   keywords,
   placeholder,
-  rows = 3,
+  rows = 2,
   className = '',
   ariaLabel,
+  autoFocus = false,
+  autoExpand = true,
+  variant = 'boxed',
+  externalRef,
   onSubmitShortcut,
+  onCancel,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(-1);
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const baseHeightPx =
+    variant === 'compact' ? 32 : rows === 1 ? 34 : 54;
+  const maxHeightPx =
+    variant === 'compact' ? 108 : 160;
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const charThreshold = variant === 'compact' ? 58 : 95;
+    const isMultiLine =
+      value.includes('\n') || value.length > charThreshold;
+
+    if (!autoExpand || !isMultiLine) {
+      el.style.height = `${baseHeightPx}px`;
+      return;
+    }
+
+    el.style.height = `${baseHeightPx}px`;
+    const nextHeight = Math.min(
+      Math.max(el.scrollHeight, baseHeightPx),
+      maxHeightPx
+    );
+    el.style.height = `${nextHeight}px`;
+  }, [value, autoExpand, variant, baseHeightPx, maxHeightPx]);
 
   const filteredKeywords =
     mentionQuery === null
@@ -79,7 +115,7 @@ export default function MentionTextarea({
     requestAnimationFrame(() => {
       if (textareaRef.current) {
         const nextPos = before.length + inserted.length;
-        textareaRef.current.focus();
+        textareaRef.current.focus({ preventScroll: true });
         textareaRef.current.setSelectionRange(nextPos, nextPos);
       }
     });
@@ -106,26 +142,51 @@ export default function MentionTextarea({
         return;
       }
       if (e.key === 'Escape') {
+        e.preventDefault();
         setMentionQuery(null);
         return;
       }
     }
 
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && onSubmitShortcut) {
+    if (e.key === 'Escape' && onCancel) {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+
+    // Universal Enter to submit (Shift+Enter inserts a newline)
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      onSubmitShortcut
+    ) {
       e.preventDefault();
       onSubmitShortcut();
     }
   }
 
+  const variantClasses =
+    variant === 'borderless'
+      ? 'block w-full resize-none border-0 bg-transparent px-0 py-1 text-[15px] leading-[1.5] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none'
+      : variant === 'compact'
+      ? 'block w-full resize-none border-0 bg-transparent px-1.5 py-[5px] text-[13.5px] leading-[22px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none'
+      : 'block w-full resize-none rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-[13px] leading-[1.45] text-[#0F172A] placeholder:text-[#64748B] focus:border-[#1E3A5F] focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/15 transition-colors';
+
   return (
     <div className="relative w-full">
       <textarea
-        ref={textareaRef}
+        ref={(node) => {
+          textareaRef.current = node;
+          externalRef?.(node);
+        }}
         id={id}
         aria-label={ariaLabel}
+        autoFocus={autoFocus}
         rows={rows}
         value={value}
         placeholder={placeholder}
+        style={{ height: `${baseHeightPx}px` }}
         onChange={(e) => {
           const next = e.target.value;
           onChange(next);
@@ -139,24 +200,24 @@ export default function MentionTextarea({
         onBlur={() => {
           setTimeout(() => setMentionQuery(null), 160);
         }}
-        className={`w-full resize-none rounded-lg border border-[#DCD6CA] bg-[#FAF8F4] px-3.5 py-2.5 text-sm leading-relaxed text-[#1A1D24] placeholder:text-[#7D8390] focus:border-[#2D4B73] focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2D4B73]/20 transition-colors ${className}`}
+        className={`${variantClasses} ${className}`}
       />
 
       {showSuggestions && (
         <div
           role="listbox"
           aria-label="Keyword suggestions"
-          className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-56 overflow-y-auto rounded-lg border border-[#DCD6CA] bg-white p-1.5 shadow-lg"
+          className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
         >
-          <div className="flex items-center justify-between px-2 py-1 text-[11px] font-medium text-[#6B7180]">
-            <span>Select keyword mention</span>
+          <div className="flex items-center justify-between px-2 py-1 text-[11px] font-medium text-slate-500">
+            <span>Mention @keyword (Enter / Tab)</span>
             <button
               type="button"
               onMouseDown={(e) => {
                 e.preventDefault();
                 setMentionQuery(null);
               }}
-              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-[#575D6B] hover:bg-[#F3EFE6] hover:text-[#1A1D24]"
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
               Esc
             </button>
@@ -171,16 +232,16 @@ export default function MentionTextarea({
                 e.preventDefault();
                 insertMention(kw.keyword);
               }}
-              className={`flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left text-xs transition-colors ${
+              className={`flex w-full items-start justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
                 idx === selectedIndex
-                  ? 'bg-[#2D4B73]/10 text-[#1A1D24]'
-                  : 'text-[#3A404D] hover:bg-[#F6F3EC]'
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <span className="font-mono font-medium text-[#2D4B73] shrink-0">
+              <span className="font-mono font-semibold text-[#1E3A5F] shrink-0">
                 @{kw.keyword}
               </span>
-              <span className="truncate text-[#6B7180]">{kw.summary}</span>
+              <span className="truncate text-slate-500">{kw.summary}</span>
             </button>
           ))}
         </div>

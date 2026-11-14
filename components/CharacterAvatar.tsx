@@ -21,19 +21,21 @@ const AVATAR_MAP: Record<string, StaticImageData> = {
 interface CharacterAvatarProps {
   character?: Partial<Character> | null;
   nameFallback?: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: '2xs' | 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
 }
 
 const SIZE_CLASSES = {
-  xs: 'w-6 h-6 text-[11px]',
+  '2xs': 'w-[22px] h-[22px] text-[10px]',
+  xs: 'w-[26px] h-[26px] text-[11px]',
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
   lg: 'w-12 h-12 text-base',
 };
 
 const SIZE_PX = {
-  xs: 24,
+  '2xs': 22,
+  xs: 26,
   sm: 32,
   md: 40,
   lg: 48,

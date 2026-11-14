@@ -60,12 +60,33 @@ export default function KotonohaWorkspace() {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileTab, setMobileTab] = useState<MobileTab>('feed');
 
+  // Collapsible side panel states (Left Keywords & Right Verify)
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+
   // Hydrate persisted state cleanly on client
   useEffect(() => {
     let active = true;
     Promise.resolve().then(() => {
       if (!active) return;
       setState(loadWorkspaceFromStorage());
+      try {
+        const rawLayout = window.localStorage.getItem('kotonoha_studio_layout_v3');
+        if (rawLayout) {
+          const parsed = JSON.parse(rawLayout) as {
+            leftCollapsed?: boolean;
+            rightCollapsed?: boolean;
+          };
+          if (typeof parsed.leftCollapsed === 'boolean') {
+            setLeftCollapsed(parsed.leftCollapsed);
+          }
+          if (typeof parsed.rightCollapsed === 'boolean') {
+            setRightCollapsed(parsed.rightCollapsed);
+          }
+        }
+      } catch {
+        // Ignore storage read errors
+      }
       setHydrated(true);
     });
     return () => {
@@ -77,6 +98,18 @@ export default function KotonohaWorkspace() {
     if (!hydrated) return;
     saveWorkspaceToStorage(state);
   }, [state, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        'kotonoha_studio_layout_v3',
+        JSON.stringify({ leftCollapsed, rightCollapsed })
+      );
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [leftCollapsed, rightCollapsed, hydrated]);
 
   const feedCharacters = useMemo(() => getFeedCharacters(state), [state]);
 
@@ -92,6 +125,12 @@ export default function KotonohaWorkspace() {
 
   const archivedCount =
     state.archivedFeed.length + state.archivedVerifications.length;
+  const pendingVerifyCount = state.verifications.filter(
+    (v) => v.status === 'pending'
+  ).length;
+  const successVerifyCount = state.verifications.filter(
+    (v) => v.status === 'success'
+  ).length;
 
   function applyAction(
     result:
@@ -142,6 +181,7 @@ export default function KotonohaWorkspace() {
     feedItemId: string;
     characterId: string;
     text: string;
+    images?: string[];
     parentCommentId?: string;
   }) {
     return applyAction(addFeedComment(state, input));
@@ -230,7 +270,18 @@ export default function KotonohaWorkspace() {
     setActiveKeywordFilter(null);
     setFilterCategory('all');
     setSearchQuery('');
+    setLeftCollapsed(false);
+    setRightCollapsed(false);
   }
+
+  const desktopGridCols =
+    leftCollapsed && rightCollapsed
+      ? 'lg:grid-cols-1 lg:max-w-[780px] lg:mx-auto'
+      : leftCollapsed
+      ? 'lg:grid-cols-[minmax(0,1fr)_316px] lg:max-w-[1140px] lg:mx-auto'
+      : rightCollapsed
+      ? 'lg:grid-cols-[280px_minmax(0,1fr)] lg:max-w-[1100px] lg:mx-auto'
+      : 'lg:grid-cols-[272px_minmax(0,1fr)_308px] xl:grid-cols-[284px_minmax(0,1fr)_320px]';
 
   return (
     <div id="top" className="min-h-screen flex flex-col">
@@ -241,11 +292,11 @@ export default function KotonohaWorkspace() {
       />
 
       {/* Mobile Column Switcher (< lg) */}
-      <div className="border-b border-[#DCD6CA] bg-[#FAF8F4] px-4 py-2 lg:hidden">
+      <div className="border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
         <div
           role="tablist"
           aria-label="Workspace panels"
-          className="grid grid-cols-3 gap-1 rounded-lg bg-[#EDE9DF] p-1"
+          className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1"
         >
           <button
             type="button"
@@ -254,8 +305,8 @@ export default function KotonohaWorkspace() {
             onClick={() => setMobileTab('keywords')}
             className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
               mobileTab === 'keywords'
-                ? 'bg-white text-[#1A1D24] shadow-xs'
-                : 'text-[#575D6B]'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600'
             }`}
           >
             Keywords ({state.keywords.length})
@@ -267,8 +318,8 @@ export default function KotonohaWorkspace() {
             onClick={() => setMobileTab('feed')}
             className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
               mobileTab === 'feed'
-                ? 'bg-white text-[#1A1D24] shadow-xs'
-                : 'text-[#575D6B]'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600'
             }`}
           >
             Feed ({visibleFeed.length})
@@ -280,8 +331,8 @@ export default function KotonohaWorkspace() {
             onClick={() => setMobileTab('verify')}
             className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
               mobileTab === 'verify'
-                ? 'bg-white text-[#1A1D24] shadow-xs'
-                : 'text-[#575D6B]'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600'
             }`}
           >
             Verify ({state.verifications.length})
@@ -290,24 +341,36 @@ export default function KotonohaWorkspace() {
       </div>
 
       {/* Main 3-Column Studio Workspace */}
-      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[290px_minmax(0,1fr)_320px] xl:grid-cols-[310px_minmax(0,1fr)_340px] items-start">
+      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 lg:px-8">
+        <div
+          data-testid="workspace-grid"
+          data-left-collapsed={leftCollapsed}
+          data-right-collapsed={rightCollapsed}
+          className={`grid grid-cols-1 gap-5 ${desktopGridCols} items-start`}
+        >
           {/* Box 1 (Left): Keywords */}
-          <div className={`${mobileTab === 'keywords' ? 'block' : 'hidden lg:block'} lg:sticky lg:top-[84px]`}>
-            <KeywordSidebar
-              keywords={state.keywords}
-              activeKeywordFilter={activeKeywordFilter}
-              cardPrefs={state.keywordCardPrefs}
-              onUpdateCardPrefs={handleUpdateKeywordCardPrefs}
-              onSelectFilter={(kw) => {
-                setActiveKeywordFilter(kw);
-                if (kw) setMobileTab('feed');
-              }}
-              onQuickAddKeyword={handleQuickAddKeyword}
-              onEditKeyword={(item) => setEditingKeyword(item)}
-              onDeleteKeyword={handleDeleteKeyword}
-            />
-          </div>
+          {!leftCollapsed && (
+            <div
+              className={`${
+                mobileTab === 'keywords' ? 'block' : 'hidden lg:block'
+              } lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto washi-scroll`}
+            >
+              <KeywordSidebar
+                keywords={state.keywords}
+                activeKeywordFilter={activeKeywordFilter}
+                cardPrefs={state.keywordCardPrefs}
+                onToggleCollapse={() => setLeftCollapsed(true)}
+                onUpdateCardPrefs={handleUpdateKeywordCardPrefs}
+                onSelectFilter={(kw) => {
+                  setActiveKeywordFilter(kw);
+                  if (kw) setMobileTab('feed');
+                }}
+                onQuickAddKeyword={handleQuickAddKeyword}
+                onEditKeyword={(item) => setEditingKeyword(item)}
+                onDeleteKeyword={handleDeleteKeyword}
+              />
+            </div>
+          )}
 
           {/* Box 2 (Center Big Box): Feed */}
           <div className={mobileTab === 'feed' ? 'block' : 'hidden lg:block'}>
@@ -335,37 +398,51 @@ export default function KotonohaWorkspace() {
               searchQuery={searchQuery}
               onChangeSearchQuery={setSearchQuery}
               onOpenLightbox={(url) => setLightboxImage(url)}
+              leftCollapsed={leftCollapsed}
+              rightCollapsed={rightCollapsed}
+              onToggleLeftCollapse={() => setLeftCollapsed((prev) => !prev)}
+              onToggleRightCollapse={() => setRightCollapsed((prev) => !prev)}
+              pendingVerifyCount={pendingVerifyCount}
+              successVerifyCount={successVerifyCount}
+              onResetWorkspace={handleResetWorkspace}
             />
           </div>
 
           {/* Box 3 & 4 (Right): Pending Verify & Success Verify */}
-          <div className={`${mobileTab === 'verify' ? 'block' : 'hidden lg:block'} lg:sticky lg:top-[84px]`}>
-            <VerificationColumn
-              verifications={state.verifications}
-              keywords={state.keywords}
-              characters={state.characters}
-              pendingCharacterId={state.pendingCharacterId}
-              successCharacterId={state.successCharacterId}
-              activeKeywordFilter={activeKeywordFilter}
-              onSelectKeywordFilter={(kw) => {
-                setActiveKeywordFilter(kw);
-                if (kw) setMobileTab('feed');
-              }}
-              onAddVerifyEntry={handleAddVerify}
-              onPromotePending={handlePromotePending}
-              onMoveVerifyToRoom={handleMoveVerifyToRoom}
-              onDeleteVerifyItem={handleDeleteVerifyItem}
-            />
-          </div>
+          {!rightCollapsed && (
+            <div
+              className={`${
+                mobileTab === 'verify' ? 'block' : 'hidden lg:block'
+              } lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto washi-scroll`}
+            >
+              <VerificationColumn
+                verifications={state.verifications}
+                keywords={state.keywords}
+                characters={state.characters}
+                pendingCharacterId={state.pendingCharacterId}
+                successCharacterId={state.successCharacterId}
+                activeKeywordFilter={activeKeywordFilter}
+                onToggleCollapse={() => setRightCollapsed(true)}
+                onSelectKeywordFilter={(kw) => {
+                  setActiveKeywordFilter(kw);
+                  if (kw) setMobileTab('feed');
+                }}
+                onAddVerifyEntry={handleAddVerify}
+                onPromotePending={handlePromotePending}
+                onMoveVerifyToRoom={handleMoveVerifyToRoom}
+                onDeleteVerifyItem={handleDeleteVerifyItem}
+              />
+            </div>
+          )}
         </div>
       </main>
 
       {/* Quiet Editorial Project Footer */}
-      <footer className="border-t border-[#E2DDD3] bg-[#FBF9F5]/80 py-3.5 px-4 sm:px-6">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 text-xs text-[#575D6B]">
+      <footer className="border-t border-slate-200/90 bg-white py-3.5 px-4 sm:px-6">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <BookOpen className="h-4 w-4 text-[#2D4B73]" aria-hidden="true" />
-            <span className="font-semibold text-[#1A1D24]">
+            <BookOpen className="h-4 w-4 text-[#1E3A5F]" aria-hidden="true" />
+            <span className="font-semibold text-slate-900">
               Sylhet Polytechnic Institute
             </span>
             <span aria-hidden="true">·</span>
@@ -373,7 +450,7 @@ export default function KotonohaWorkspace() {
             <span aria-hidden="true">·</span>
             <span>Project Leader: Maruf Islam</span>
           </div>
-          <span className="text-[11px] text-[#7D8390]">
+          <span className="text-[11px] text-slate-400">
             Personal Dialogue &amp; Keyword Studio
           </span>
         </div>
