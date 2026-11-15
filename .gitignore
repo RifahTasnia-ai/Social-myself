@@ -1,5 +1,7 @@
 node_modules/
 .next/
+.next-dev/
+.playwright-cli/
 coverage/
 .DS_Store
 *.log

@@ -34,6 +34,7 @@ export interface FeedComment {
   characterId: string;
   characterName: string;
   text: string;
+  images?: string[];
   createdAt: string;
   parentId?: string;
 }
@@ -79,18 +80,87 @@ export interface VerifyItem {
 export type KeywordCardSpacing = 'compact' | 'balanced' | 'airy';
 export type KeywordCardPadding = 'tight' | 'standard' | 'generous';
 export type KeywordCardBorder = 'hairline' | 'framed' | 'dashed' | 'borderless';
+export type KeywordCardSizePreset = 'compact' | 'default' | 'large';
 
 export interface KeywordCardPrefs {
   spacing: KeywordCardSpacing;
   padding: KeywordCardPadding;
   borderStyle: KeywordCardBorder;
+  sizePreset?: KeywordCardSizePreset;
+  resizable?: boolean;
 }
 
+export const CURRENT_UI_PREFS_VERSION = 2;
+
 export const DEFAULT_KEYWORD_CARD_PREFS: KeywordCardPrefs = {
-  spacing: 'balanced',
-  padding: 'standard',
+  spacing: 'compact',
+  padding: 'tight',
   borderStyle: 'hairline',
+  sizePreset: 'default',
+  resizable: false,
 };
+
+export interface FlattenedReplyItem {
+  comment: FeedComment;
+  replyToName: string;
+  replyToCommentId: string;
+}
+
+export interface CommentThreadGroup {
+  root: FeedComment;
+  replies: FlattenedReplyItem[];
+}
+
+export function buildFlatCommentThreads(
+  comments: FeedComment[]
+): CommentThreadGroup[] {
+  const byId = new Map<string, FeedComment>();
+  for (const c of comments) {
+    byId.set(c.id, c);
+  }
+
+  const groups: CommentThreadGroup[] = [];
+  const groupByRootId = new Map<string, CommentThreadGroup>();
+
+  const findRootComment = (cmt: FeedComment): FeedComment => {
+    let curr = cmt;
+    const seen = new Set<string>([curr.id]);
+    while (curr.parentId && byId.has(curr.parentId)) {
+      if (seen.has(curr.parentId)) break;
+      seen.add(curr.parentId);
+      curr = byId.get(curr.parentId)!;
+    }
+    return curr;
+  };
+
+  for (const c of comments) {
+    if (!c.parentId || !byId.has(c.parentId)) {
+      const group: CommentThreadGroup = { root: c, replies: [] };
+      groups.push(group);
+      groupByRootId.set(c.id, group);
+    }
+  }
+
+  for (const c of comments) {
+    if (c.parentId && byId.has(c.parentId)) {
+      const immediateParent = byId.get(c.parentId)!;
+      const root = findRootComment(c);
+      let group = groupByRootId.get(root.id);
+      if (!group) {
+        group = { root, replies: [] };
+        groups.push(group);
+        groupByRootId.set(root.id, group);
+      }
+      group.replies.push({
+        comment: c,
+        replyToName: immediateParent.characterName,
+        replyToCommentId: immediateParent.id,
+      });
+    }
+  }
+
+  return groups;
+}
 
 export interface ArchivedFeedItem extends FeedItem {
   archivedAt: string;
@@ -111,6 +181,7 @@ export interface WorkspaceState {
   pendingCharacterId: string;
   successCharacterId: string;
   keywordCardPrefs: KeywordCardPrefs;
+  uiPrefsVersion?: number;
 }
 
 export type ActionResult<T = WorkspaceState> =
@@ -262,6 +333,7 @@ export function createInitialWorkspaceState(): WorkspaceState {
           characterName: 'Sasuke',
           text: 'Tested on bench unit #2 — packet loss stayed at zero over 200 cycles.',
           createdAt: isoAt(9),
+          parentId: 'cmt_seed_1',
         },
       ],
       createdAt: isoAt(18),
@@ -360,6 +432,7 @@ export function createInitialWorkspaceState(): WorkspaceState {
     pendingCharacterId: 'char_maruf',
     successCharacterId: 'char_sadik',
     keywordCardPrefs: { ...DEFAULT_KEYWORD_CARD_PREFS },
+    uiPrefsVersion: CURRENT_UI_PREFS_VERSION,
   };
 }
 
@@ -370,6 +443,22 @@ export function normalizeWorkspaceState(
   if (!raw || !Array.isArray(raw.keywords) || !Array.isArray(raw.feed) || !Array.isArray(raw.characters)) {
     return fallback;
   }
+
+  const rawPrefs = raw.keywordCardPrefs;
+  const isLegacyUnmodifiedDefault =
+    (!raw.uiPrefsVersion || raw.uiPrefsVersion < CURRENT_UI_PREFS_VERSION) &&
+    (!rawPrefs ||
+      (rawPrefs.spacing === 'balanced' &&
+        rawPrefs.padding === 'standard' &&
+        rawPrefs.borderStyle === 'hairline'));
+
+  const resolvedPrefs: KeywordCardPrefs = isLegacyUnmodifiedDefault
+    ? { ...DEFAULT_KEYWORD_CARD_PREFS }
+    : {
+        ...DEFAULT_KEYWORD_CARD_PREFS,
+        ...(rawPrefs ?? {}),
+      };
+
   return {
     ...fallback,
     ...raw,
@@ -378,10 +467,8 @@ export function normalizeWorkspaceState(
       ? raw.archivedVerifications
       : [],
     verifications: Array.isArray(raw.verifications) ? raw.verifications : [],
-    keywordCardPrefs: {
-      ...DEFAULT_KEYWORD_CARD_PREFS,
-      ...(raw.keywordCardPrefs ?? {}),
-    },
+    keywordCardPrefs: resolvedPrefs,
+    uiPrefsVersion: CURRENT_UI_PREFS_VERSION,
   };
 }
 
@@ -632,12 +719,14 @@ export function addFeedComment(
     feedItemId: string;
     characterId?: string;
     text: string;
+    images?: string[];
     parentCommentId?: string;
   }
 ): ActionResult {
   const text = input.text.trim();
-  if (!text) {
-    return { ok: false, error: 'Comment cannot be empty.' };
+  const images = (input.images ?? []).filter(Boolean);
+  if (!text && images.length === 0) {
+    return { ok: false, error: 'Write a comment or attach an image.' };
   }
 
   const target = state.feed.find((f) => f.id === input.feedItemId);
@@ -658,6 +747,7 @@ export function addFeedComment(
     characterId: actor.id,
     characterName: actor.name,
     text,
+    ...(images.length > 0 ? { images } : {}),
     createdAt: new Date().toISOString(),
     ...(input.parentCommentId ? { parentId: input.parentCommentId } : {}),
   };

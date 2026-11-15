@@ -1,0 +1,220 @@
+{
+  "_id": "default",
+  "state": {
+    "keywords": [
+      {
+        "id": "kw_1",
+        "keyword": "sensor-node",
+        "summary": "ESP32 telemetry packet framing and sleep wake interval tuning.",
+        "tone": "sky",
+        "createdAt": "2026-11-12T06:10:00.000Z",
+        "updatedAt": "2026-11-12T07:40:00.000Z"
+      },
+      {
+        "id": "kw_2",
+        "keyword": "auth-bridge",
+        "summary": "Session token verification and local workspace snapshot persistence.",
+        "tone": "sage",
+        "createdAt": "2026-11-12T06:40:00.000Z",
+        "updatedAt": "2026-11-12T06:40:00.000Z"
+      },
+      {
+        "id": "kw_3",
+        "keyword": "circuit-v2",
+        "summary": "Voltage divider calibration for 5V logic level shifting.",
+        "tone": "lavender",
+        "createdAt": "2026-11-12T07:10:00.000Z",
+        "updatedAt": "2026-11-12T07:10:00.000Z"
+      },
+      {
+        "id": "kw_4",
+        "keyword": "field-ui",
+        "summary": "Washi daylight contrast tokens and keyboard mention palette.",
+        "tone": "teal",
+        "createdAt": "2026-11-12T07:35:00.000Z",
+        "updatedAt": "2026-11-12T07:35:00.000Z"
+      },
+      {
+        "id": "kw_5",
+        "keyword": "deploy-log",
+        "summary": "Sylhet Lab Project 07 hardware checklist before field trial.",
+        "tone": "sand",
+        "createdAt": "2026-11-12T08:00:00.000Z",
+        "updatedAt": "2026-11-12T08:00:00.000Z"
+      }
+    ],
+    "feed": [
+      {
+        "id": "feed_seed_5",
+        "type": "post",
+        "characterId": "char_ajanokoji",
+        "characterName": "Ajanokoji",
+        "content": "Reviewed @sensor-node wake cycle timings. Reducing the deep-sleep handshake window by 40ms keeps battery draw predictable across cold mornings.",
+        "keywordMentions": [
+          "sensor-node"
+        ],
+        "images": [],
+        "comments": [
+          {
+            "id": "cmt_seed_1",
+            "characterId": "char_aizen",
+            "characterName": "Aizen",
+            "text": "Make sure @sensor-node still buffers one retry frame if the gateway drops the ACK.",
+            "createdAt": "2026-11-12T08:56:00.000Z"
+          },
+          {
+            "id": "cmt_seed_2",
+            "characterId": "char_sasuke",
+            "characterName": "Sasuke",
+            "text": "Tested on bench unit #2 — packet loss stayed at zero over 200 cycles.",
+            "createdAt": "2026-11-12T09:01:00.000Z",
+            "parentId": "cmt_seed_1"
+          }
+        ],
+        "createdAt": "2026-11-12T08:52:00.000Z"
+      },
+      {
+        "id": "feed_seed_4",
+        "type": "success_verify",
+        "characterId": "char_sadik",
+        "characterName": "Sadik",
+        "content": "@auth-bridge Verified token expiry boundary and reload persistence. Ready for Project 07 sign-off.",
+        "keywordMentions": [
+          "auth-bridge"
+        ],
+        "images": [],
+        "comments": [],
+        "createdAt": "2026-11-12T08:38:00.000Z"
+      },
+      {
+        "id": "feed_seed_3",
+        "type": "pending_verify",
+        "characterId": "char_maruf",
+        "characterName": "Maruf",
+        "content": "@circuit-v2 Awaiting final thermal check on the 5V regulator under continuous load.",
+        "keywordMentions": [
+          "circuit-v2"
+        ],
+        "images": [],
+        "comments": [],
+        "createdAt": "2026-11-12T08:22:00.000Z"
+      },
+      {
+        "id": "feed_seed_2",
+        "type": "keyword_edited",
+        "characterId": "char_maruf",
+        "characterName": "Maruf",
+        "content": "Refined @sensor-node summary to include sleep wake interval tuning.",
+        "keywordMentions": [
+          "sensor-node"
+        ],
+        "images": [],
+        "diff": {
+          "field": "summary",
+          "beforeKeyword": "sensor-node",
+          "afterKeyword": "sensor-node",
+          "beforeSummary": "ESP32 telemetry packet framing draft.",
+          "afterSummary": "ESP32 telemetry packet framing and sleep wake interval tuning."
+        },
+        "comments": [],
+        "createdAt": "2026-11-12T07:40:00.000Z"
+      },
+      {
+        "id": "feed_seed_1",
+        "type": "order",
+        "characterId": "char_aizen",
+        "characterName": "Aizen",
+        "content": "Work order queued for @deploy-log: prepare enclosure labels and solder two backup headers.",
+        "keywordMentions": [
+          "deploy-log"
+        ],
+        "images": [],
+        "orderMeta": {
+          "code": "ORD-0701",
+          "priority": "High"
+        },
+        "comments": [],
+        "createdAt": "2026-11-12T07:20:00.000Z"
+      }
+    ],
+    "verifications": [
+      {
+        "id": "ver_seed_1",
+        "status": "pending",
+        "keyword": "circuit-v2",
+        "comment": "Awaiting final thermal check on the 5V regulator under continuous load.",
+        "characterId": "char_maruf",
+        "characterName": "Maruf",
+        "feedItemId": "feed_seed_3",
+        "createdAt": "2026-11-12T08:22:00.000Z"
+      },
+      {
+        "id": "ver_seed_2",
+        "status": "success",
+        "keyword": "auth-bridge",
+        "comment": "Verified token expiry boundary and reload persistence. Ready for Project 07 sign-off.",
+        "characterId": "char_sadik",
+        "characterName": "Sadik",
+        "feedItemId": "feed_seed_4",
+        "createdAt": "2026-11-12T08:38:00.000Z"
+      }
+    ],
+    "archivedFeed": [],
+    "archivedVerifications": [],
+    "characters": [
+      {
+        "id": "char_ajanokoji",
+        "name": "Ajanokoji",
+        "roleLabel": "Tactical Analyst",
+        "channel": "feed",
+        "color": "#2D4B73",
+        "avatarKey": "ajanokoji"
+      },
+      {
+        "id": "char_aizen",
+        "name": "Aizen",
+        "roleLabel": "Systems Strategist",
+        "channel": "feed",
+        "color": "#5B4B8A",
+        "avatarKey": "aizen"
+      },
+      {
+        "id": "char_sasuke",
+        "name": "Sasuke",
+        "roleLabel": "Field Observer",
+        "channel": "feed",
+        "color": "#1F3A52",
+        "avatarKey": "sasuke"
+      },
+      {
+        "id": "char_maruf",
+        "name": "Maruf",
+        "roleLabel": "Pending Verifier",
+        "channel": "pending",
+        "color": "#B7791F",
+        "avatarKey": "maruf"
+      },
+      {
+        "id": "char_sadik",
+        "name": "Sadik",
+        "roleLabel": "Success Verifier",
+        "channel": "success",
+        "color": "#2F6B4F",
+        "avatarKey": "sadik"
+      }
+    ],
+    "activeFeedCharacterId": "char_ajanokoji",
+    "pendingCharacterId": "char_maruf",
+    "successCharacterId": "char_sadik",
+    "keywordCardPrefs": {
+      "spacing": "compact",
+      "padding": "tight",
+      "borderStyle": "hairline",
+      "sizePreset": "default",
+      "resizable": false
+    },
+    "uiPrefsVersion": 2
+  },
+  "updatedAt": "2026-11-14T16:31:30.601Z",
+  "customModified": false
+}

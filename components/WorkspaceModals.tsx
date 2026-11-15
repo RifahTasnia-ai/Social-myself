@@ -18,8 +18,13 @@ import type {
   OrderMeta,
 } from '@/lib/workspace-store';
 import { compressImageFile } from '@/lib/image-utils';
+import type {
+  BackupSnapshotSummary,
+  DatabaseStatusMeta,
+} from '@/lib/backup-utils';
 import type { ModalKind } from './TopNavBar';
 import CharacterAvatar from './CharacterAvatar';
+import DatabaseBackupSection from './DatabaseBackupSection';
 
 interface WorkspaceModalsProps {
   activeModal: ModalKind;
@@ -76,6 +81,18 @@ interface WorkspaceModalsProps {
     characterId: string
   ) => void;
   onResetWorkspace: () => void;
+  dbMeta?: DatabaseStatusMeta | null;
+  snapshots?: BackupSnapshotSummary[];
+  onReconnectDb?: () => Promise<void>;
+  onCreateSnapshot?: (
+    label?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onRestoreSnapshot?: (
+    snapshotId: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onImportBackupJson?: (
+    payload: unknown
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const TONE_OPTIONS: { value: KeywordTone; label: string; swatch: string }[] = [
@@ -116,6 +133,12 @@ export default function WorkspaceModals({
   onRemoveCharacter,
   onSetChannelDefault,
   onResetWorkspace,
+  dbMeta = null,
+  snapshots = [],
+  onReconnectDb,
+  onCreateSnapshot,
+  onRestoreSnapshot,
+  onImportBackupJson,
 }: WorkspaceModalsProps) {
   const isOpen = Boolean(activeModal || editingKeyword || lightboxImage);
 
@@ -322,7 +345,17 @@ export default function WorkspaceModals({
                         setKwSummary(e.target.value);
                         if (modalError) setModalError(null);
                       }}
-                      placeholder="Write a crisp summary of what this keyword tracks..."
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === 'Enter' &&
+                          !e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          e.currentTarget.form?.requestSubmit();
+                        }
+                      }}
+                      placeholder="Write a crisp summary of what this keyword tracks (Enter to create)..."
                       className="w-full resize-none rounded-xl border border-[#DCD6CA] bg-white px-3.5 py-2.5 text-sm text-[#1A1D24] placeholder:text-[#8A909E] focus:border-[#C84B31] focus:outline-none"
                     />
                   </div>
@@ -360,13 +393,13 @@ export default function WorkspaceModals({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="rounded-[3px] border border-[#DCD6CA] bg-white px-4 py-2 text-xs font-semibold text-[#3A404D] hover:bg-[#F4F0E8]"
+                      className="rounded-md border border-[#DCD6CA] bg-white px-4 py-2 text-xs font-semibold text-[#3A404D] hover:bg-[#F4F0E8]"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="rounded-[3px] bg-[#2D4B73] px-4 py-2 text-xs font-semibold text-white hover:bg-[#223B5C]"
+                      className="rounded-md bg-[#2D4B73] px-4 py-2 text-xs font-semibold text-white hover:bg-[#223B5C]"
                     >
                       Create Keyword
                     </button>
@@ -449,6 +482,16 @@ export default function WorkspaceModals({
                       onChange={(e) => {
                         setEditSummary(e.target.value);
                         if (modalError) setModalError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === 'Enter' &&
+                          !e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          e.currentTarget.form?.requestSubmit();
+                        }
                       }}
                       className="w-full resize-none rounded-xl border border-[#DCD6CA] bg-white px-3.5 py-2.5 text-sm text-[#1A1D24] focus:border-[#2D4B73] focus:outline-none"
                     />
@@ -624,7 +667,17 @@ export default function WorkspaceModals({
                         setOrderDetails(e.target.value);
                         if (modalError) setModalError(null);
                       }}
-                      placeholder="Specify parts, steps, or target milestone..."
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === 'Enter' &&
+                          !e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          e.currentTarget.form?.requestSubmit();
+                        }
+                      }}
+                      placeholder="Specify parts, steps, or target milestone (Enter to submit)..."
                       className="w-full resize-none rounded-xl border border-[#DCD6CA] bg-white px-3.5 py-2.5 text-sm text-[#1A1D24] placeholder:text-[#8A909E] focus:border-[#2D4B73] focus:outline-none"
                     />
                   </div>
@@ -759,10 +812,20 @@ export default function WorkspaceModals({
                         setVerifyComment(e.target.value);
                         if (modalError) setModalError(null);
                       }}
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === 'Enter' &&
+                          !e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          e.currentTarget.form?.requestSubmit();
+                        }
+                      }}
                       placeholder={
                         activeModal === 'pending_verify'
-                          ? 'Describe what is waiting for verification...'
-                          : 'Confirm what passed verification...'
+                          ? 'Describe what is waiting for verification (Enter to submit)...'
+                          : 'Confirm what passed verification (Enter to submit)...'
                       }
                       className="w-full resize-none rounded-xl border border-[#DCD6CA] bg-white px-3.5 py-2.5 text-sm text-[#1A1D24] placeholder:text-[#8A909E] focus:border-[#2D4B73] focus:outline-none"
                     />
@@ -803,10 +866,10 @@ export default function WorkspaceModals({
                         id="workspace-modal-title"
                         className="font-display text-2xl font-semibold text-[#1A1D24]"
                       >
-                        Character &amp; Studio Settings
+                        Database, Backups &amp; Studio Settings
                       </h2>
                       <p className="mt-0.5 text-xs text-[#616775]">
-                        Add or remove characters for commenting in Feed and assign verification voices.
+                        Manage MongoDB Atlas sync, export/restore JSON backups, and configure feed &amp; verification characters.
                       </p>
                     </div>
                     <button
@@ -818,6 +881,20 @@ export default function WorkspaceModals({
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
+
+                  {onReconnectDb &&
+                    onCreateSnapshot &&
+                    onRestoreSnapshot &&
+                    onImportBackupJson && (
+                      <DatabaseBackupSection
+                        dbMeta={dbMeta}
+                        snapshots={snapshots}
+                        onReconnectDb={onReconnectDb}
+                        onCreateSnapshot={onCreateSnapshot}
+                        onRestoreSnapshot={onRestoreSnapshot}
+                        onImportBackupJson={onImportBackupJson}
+                      />
+                    )}
 
                   {/* Default Verifier Selectors */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 rounded-xl border border-[#E4DFD4] bg-white p-3.5">

@@ -26,6 +26,7 @@ import {
   restoreVerifyItemFromRoom,
   deleteArchivedVerifyItem,
   updateKeywordCardPrefs,
+  buildFlatCommentThreads,
 } from './workspace-store';
 
 test('normalizeKeywordHandle strips @ and converts spaces to hyphens', () => {
@@ -126,6 +127,81 @@ test('addFeedPost, addFeedComment, and deleteFeedComment work cleanly', () => {
   assert.equal(delCmtRes.ok, true);
   if (!delCmtRes.ok) return;
   assert.equal(delCmtRes.state.feed[0].comments.length, 0);
+});
+
+test('buildFlatCommentThreads flattens multi-depth replies into 1 level with @ParentName', () => {
+  const comments = [
+    {
+      id: 'c_root',
+      characterId: 'char_sadik',
+      characterName: 'Sadik',
+      text: 'Root comment on @sensor-node',
+      createdAt: '2026-11-14T10:00:00.000Z',
+    },
+    {
+      id: 'c_reply_1',
+      characterId: 'char_maruf',
+      characterName: 'Maruf',
+      text: 'First level reply',
+      createdAt: '2026-11-14T10:01:00.000Z',
+      parentId: 'c_root',
+    },
+    {
+      id: 'c_reply_2',
+      characterId: 'char_aizen',
+      characterName: 'Aizen',
+      text: 'Second level reply to Maruf',
+      createdAt: '2026-11-14T10:02:00.000Z',
+      parentId: 'c_reply_1',
+    },
+    {
+      id: 'c_reply_3',
+      characterId: 'char_sasuke',
+      characterName: 'Sasuke',
+      text: 'Third level reply to Aizen',
+      createdAt: '2026-11-14T10:03:00.000Z',
+      parentId: 'c_reply_2',
+    },
+  ];
+
+  const groups = buildFlatCommentThreads(comments);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].root.id, 'c_root');
+  assert.equal(groups[0].replies.length, 3);
+  assert.equal(groups[0].replies[0].replyToName, 'Sadik');
+  assert.equal(groups[0].replies[1].replyToName, 'Maruf');
+  assert.equal(groups[0].replies[2].replyToName, 'Aizen');
+});
+
+test('addFeedComment supports image attachments on both root comments and replies', () => {
+  const initial = createInitialWorkspaceState();
+  const targetPost = initial.feed[0];
+
+  const imgCommentRes = addFeedComment(initial, {
+    feedItemId: targetPost.id,
+    characterId: 'char_aizen',
+    text: '',
+    images: ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='],
+  });
+  assert.equal(imgCommentRes.ok, true);
+  if (!imgCommentRes.ok) return;
+
+  const addedRoot = imgCommentRes.state.feed[0].comments.at(-1)!;
+  assert.equal(addedRoot.images?.length, 1);
+
+  const imgReplyRes = addFeedComment(imgCommentRes.state, {
+    feedItemId: targetPost.id,
+    characterId: 'char_sasuke',
+    text: 'Here is the waveform capture',
+    images: ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='],
+    parentCommentId: addedRoot.id,
+  });
+  assert.equal(imgReplyRes.ok, true);
+  if (!imgReplyRes.ok) return;
+
+  const addedReply = imgReplyRes.state.feed[0].comments.at(-1)!;
+  assert.equal(addedReply.parentId, addedRoot.id);
+  assert.equal(addedReply.images?.length, 1);
 });
 
 test('Pending Verify defaults to Maruf and Success Verify defaults to Sadik, both rising into Feed', () => {
@@ -283,26 +359,39 @@ test('deleteFeedItem and deleteVerifyItem remove items cleanly', () => {
   assert.equal(resVerify.state.verifications.length, initial.verifications.length - 1);
 });
 
-test('updateKeywordCardPrefs and normalizeWorkspaceState persist card styling prefs safely', () => {
+test('updateKeywordCardPrefs and normalizeWorkspaceState persist card styling prefs and auto-migrate v1 defaults', () => {
   const initial = createInitialWorkspaceState();
+  assert.equal(initial.keywordCardPrefs.spacing, 'compact');
+  assert.equal(initial.keywordCardPrefs.padding, 'tight');
+
   const updated = updateKeywordCardPrefs(initial, {
     spacing: 'airy',
     padding: 'generous',
     borderStyle: 'framed',
+    sizePreset: 'large',
+    resizable: true,
   });
   assert.equal(updated.ok, true);
   if (!updated.ok) return;
   assert.equal(updated.state.keywordCardPrefs.spacing, 'airy');
   assert.equal(updated.state.keywordCardPrefs.borderStyle, 'framed');
+  assert.equal(updated.state.keywordCardPrefs.sizePreset, 'large');
+  assert.equal(updated.state.keywordCardPrefs.resizable, true);
 
   const migrated = normalizeWorkspaceState({
     keywords: initial.keywords,
     feed: initial.feed,
     characters: initial.characters,
+    keywordCardPrefs: {
+      spacing: 'balanced',
+      padding: 'standard',
+      borderStyle: 'hairline',
+    },
   });
   assert.deepEqual(migrated.archivedFeed, []);
   assert.deepEqual(migrated.archivedVerifications, []);
-  assert.equal(migrated.keywordCardPrefs.spacing, 'balanced');
+  assert.equal(migrated.keywordCardPrefs.spacing, 'compact');
+  assert.equal(migrated.keywordCardPrefs.padding, 'tight');
 });
 
 test('filterFeedItems filters by keyword mention, category, and search query', () => {
