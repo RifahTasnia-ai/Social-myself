@@ -10,3 +10,4 @@ coverage/
 tsconfig.tsbuildinfo
 package-lock.json
 app/api/ai/route.ts
+happy
