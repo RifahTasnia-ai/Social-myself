@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, Database, HardDrive } from 'lucide-react';
 import {
   addCharacter,
   addFeedComment,
@@ -32,7 +32,18 @@ import {
   type OrderMeta,
   type WorkspaceState,
 } from '@/lib/workspace-store';
-import { loadWorkspaceFromStorage, saveWorkspaceToStorage } from '@/lib/storage';
+import type {
+  BackupSnapshotSummary,
+  DatabaseStatusMeta,
+} from '@/lib/backup-utils';
+import {
+  createServerSnapshot,
+  fetchWorkspaceFromServer,
+  importServerBackupJson,
+  loadWorkspaceFromStorage,
+  restoreServerSnapshot,
+  syncWorkspaceToServer,
+} from '@/lib/storage';
 import TopNavBar, { type ModalKind } from './TopNavBar';
 import KeywordSidebar from './KeywordSidebar';
 import FeedColumn from './FeedColumn';
@@ -46,6 +57,9 @@ export default function KotonohaWorkspace() {
     createInitialWorkspaceState()
   );
   const [hydrated, setHydrated] = useState(false);
+  const [dbMeta, setDbMeta] = useState<DatabaseStatusMeta | null>(null);
+  const [snapshots, setSnapshots] = useState<BackupSnapshotSummary[]>([]);
+  const skipNextServerSyncRef = useRef(true);
 
   const [activeModal, setActiveModal] = useState<ModalKind>(null);
   const [editingKeyword, setEditingKeyword] = useState<KeywordItem | null>(null);
@@ -64,12 +78,16 @@ export default function KotonohaWorkspace() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
-  // Hydrate persisted state cleanly on client
+  // Hydrate persisted state cleanly on client + sync with MongoDB / Local Disk API
   useEffect(() => {
     let active = true;
-    Promise.resolve().then(() => {
+    Promise.resolve().then(async () => {
       if (!active) return;
-      setState(loadWorkspaceFromStorage());
+
+      // Immediate 0ms paint from local cache
+      const cached = loadWorkspaceFromStorage();
+      setState(cached);
+
       try {
         const rawLayout = window.localStorage.getItem('kotonoha_studio_layout_v3');
         if (rawLayout) {
@@ -87,6 +105,14 @@ export default function KotonohaWorkspace() {
       } catch {
         // Ignore storage read errors
       }
+
+      // Fetch authoritative state & auto-migrate from server API
+      const remote = await fetchWorkspaceFromServer(false);
+      if (!active) return;
+      skipNextServerSyncRef.current = true;
+      setState(remote.state);
+      if (remote.meta) setDbMeta(remote.meta);
+      setSnapshots(remote.snapshots);
       setHydrated(true);
     });
     return () => {
@@ -96,7 +122,19 @@ export default function KotonohaWorkspace() {
 
   useEffect(() => {
     if (!hydrated) return;
-    saveWorkspaceToStorage(state);
+    if (skipNextServerSyncRef.current) {
+      skipNextServerSyncRef.current = false;
+      return;
+    }
+    let active = true;
+    syncWorkspaceToServer(state).then((meta) => {
+      if (active && meta) {
+        setDbMeta(meta);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [state, hydrated]);
 
   useEffect(() => {
@@ -274,6 +312,45 @@ export default function KotonohaWorkspace() {
     setRightCollapsed(false);
   }
 
+  async function handleReconnectDb() {
+    await syncWorkspaceToServer(state);
+    const remote = await fetchWorkspaceFromServer(true);
+    skipNextServerSyncRef.current = true;
+    setState(remote.state);
+    if (remote.meta) setDbMeta(remote.meta);
+    setSnapshots(remote.snapshots);
+  }
+
+  async function handleCreateSnapshot(label?: string) {
+    const res = await createServerSnapshot(label);
+    if (res.ok && res.snapshots) {
+      setSnapshots(res.snapshots);
+    }
+    return { ok: res.ok, error: res.error };
+  }
+
+  async function handleRestoreSnapshot(snapshotId: string) {
+    const res = await restoreServerSnapshot(snapshotId);
+    if (res.ok && res.state) {
+      skipNextServerSyncRef.current = true;
+      setState(res.state);
+      if (res.meta) setDbMeta(res.meta);
+      if (res.snapshots) setSnapshots(res.snapshots);
+    }
+    return { ok: res.ok, error: res.error };
+  }
+
+  async function handleImportBackupJson(payload: unknown) {
+    const res = await importServerBackupJson(payload);
+    if (res.ok && res.state) {
+      skipNextServerSyncRef.current = true;
+      setState(res.state);
+      if (res.meta) setDbMeta(res.meta);
+      if (res.snapshots) setSnapshots(res.snapshots);
+    }
+    return { ok: res.ok, error: res.error };
+  }
+
   const desktopGridCols =
     leftCollapsed && rightCollapsed
       ? 'lg:grid-cols-1 lg:max-w-[780px] lg:mx-auto'
@@ -282,6 +359,10 @@ export default function KotonohaWorkspace() {
       : rightCollapsed
       ? 'lg:grid-cols-[280px_minmax(0,1fr)] lg:max-w-[1100px] lg:mx-auto'
       : 'lg:grid-cols-[272px_minmax(0,1fr)_308px] xl:grid-cols-[284px_minmax(0,1fr)_320px]';
+
+  const isAtlasConnected = Boolean(
+    dbMeta?.connected && dbMeta?.engine === 'mongodb_atlas'
+  );
 
   return (
     <div id="top" className="min-h-screen flex flex-col">
@@ -437,7 +518,7 @@ export default function KotonohaWorkspace() {
         </div>
       </main>
 
-      {/* Quiet Editorial Project Footer */}
+      {/* Quiet Editorial Project Footer with Database & Backup Shortcut */}
       <footer className="border-t border-slate-200/90 bg-white py-3.5 px-4 sm:px-6">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -450,9 +531,27 @@ export default function KotonohaWorkspace() {
             <span aria-hidden="true">·</span>
             <span>Project Leader: Maruf Islam</span>
           </div>
-          <span className="text-[11px] text-slate-400">
-            Personal Dialogue &amp; Keyword Studio
-          </span>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveModal('settings')}
+              title="Open Database & Backups in Settings"
+              className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-slate-600 transition-colors hover:text-[#1E3A5F]"
+            >
+              {isAtlasConnected ? (
+                <>
+                  <Database className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>MongoDB Atlas · Backups</span>
+                </>
+              ) : (
+                <>
+                  <HardDrive className="h-3.5 w-3.5 text-[#1E3A5F]" aria-hidden="true" />
+                  <span>Local Disk DB · Backups</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </footer>
 
@@ -477,6 +576,12 @@ export default function KotonohaWorkspace() {
         onRemoveCharacter={handleRemoveCharacter}
         onSetChannelDefault={handleSetChannelDefault}
         onResetWorkspace={handleResetWorkspace}
+        dbMeta={dbMeta}
+        snapshots={snapshots}
+        onReconnectDb={handleReconnectDb}
+        onCreateSnapshot={handleCreateSnapshot}
+        onRestoreSnapshot={handleRestoreSnapshot}
+        onImportBackupJson={handleImportBackupJson}
       />
     </div>
   );

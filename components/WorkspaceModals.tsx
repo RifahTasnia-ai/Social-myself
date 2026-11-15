@@ -18,8 +18,13 @@ import type {
   OrderMeta,
 } from '@/lib/workspace-store';
 import { compressImageFile } from '@/lib/image-utils';
+import type {
+  BackupSnapshotSummary,
+  DatabaseStatusMeta,
+} from '@/lib/backup-utils';
 import type { ModalKind } from './TopNavBar';
 import CharacterAvatar from './CharacterAvatar';
+import DatabaseBackupSection from './DatabaseBackupSection';
 
 interface WorkspaceModalsProps {
   activeModal: ModalKind;
@@ -76,6 +81,18 @@ interface WorkspaceModalsProps {
     characterId: string
   ) => void;
   onResetWorkspace: () => void;
+  dbMeta?: DatabaseStatusMeta | null;
+  snapshots?: BackupSnapshotSummary[];
+  onReconnectDb?: () => Promise<void>;
+  onCreateSnapshot?: (
+    label?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onRestoreSnapshot?: (
+    snapshotId: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onImportBackupJson?: (
+    payload: unknown
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const TONE_OPTIONS: { value: KeywordTone; label: string; swatch: string }[] = [
@@ -116,6 +133,12 @@ export default function WorkspaceModals({
   onRemoveCharacter,
   onSetChannelDefault,
   onResetWorkspace,
+  dbMeta = null,
+  snapshots = [],
+  onReconnectDb,
+  onCreateSnapshot,
+  onRestoreSnapshot,
+  onImportBackupJson,
 }: WorkspaceModalsProps) {
   const isOpen = Boolean(activeModal || editingKeyword || lightboxImage);
 
@@ -843,10 +866,10 @@ export default function WorkspaceModals({
                         id="workspace-modal-title"
                         className="font-display text-2xl font-semibold text-[#1A1D24]"
                       >
-                        Character &amp; Studio Settings
+                        Database, Backups &amp; Studio Settings
                       </h2>
                       <p className="mt-0.5 text-xs text-[#616775]">
-                        Add or remove characters for commenting in Feed and assign verification voices.
+                        Manage MongoDB Atlas sync, export/restore JSON backups, and configure feed &amp; verification characters.
                       </p>
                     </div>
                     <button
@@ -858,6 +881,20 @@ export default function WorkspaceModals({
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
+
+                  {onReconnectDb &&
+                    onCreateSnapshot &&
+                    onRestoreSnapshot &&
+                    onImportBackupJson && (
+                      <DatabaseBackupSection
+                        dbMeta={dbMeta}
+                        snapshots={snapshots}
+                        onReconnectDb={onReconnectDb}
+                        onCreateSnapshot={onCreateSnapshot}
+                        onRestoreSnapshot={onRestoreSnapshot}
+                        onImportBackupJson={onImportBackupJson}
+                      />
+                    )}
 
                   {/* Default Verifier Selectors */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 rounded-xl border border-[#E4DFD4] bg-white p-3.5">
